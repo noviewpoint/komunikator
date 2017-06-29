@@ -1,0 +1,238 @@
+<!doctype html>
+<head class="no-js" lang="sl">
+	<meta charset="utf-8">
+	<meta http-equiv="x-ua-compatible" content="ie=edge">
+	<title>Komunikator</title>
+	<meta name="description" content="Komunikator">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+	<style>
+
+		/* normalizacija */
+		html, body {
+			margin: 0;
+			padding: 0;
+			height: 100%;
+			width: 100%;
+		}
+
+	</style>
+</head>
+
+<body style="background-color: black;">
+
+	<div style="display: flex; height: 100%; width: 100%; align-items: center; justify-content: center;">
+		<img id="emoticon" style="display: none;" width="inherit">
+		<div id="youtubeVideo" style="display: none;"></div>
+	</div>
+
+</body>
+
+<script src="http://www.youtube.com/player_api"></script>
+<script>
+
+	var runCounter = 0;
+	var youtubeFlag = false;
+	var player = null;
+	var youtubeVideo = null;
+	var emoticon = document.getElementById("emoticon");
+	var websocket;
+	init();
+
+	function init() {
+		var urlNaslov = "ws://212.235.187.137:80/";
+		doConnect(urlNaslov);
+	}
+
+	function onYouTubeIframeAPIReady() {
+		player = new YT.Player("youtubeVideo", {
+			videoId: "u8SQbRNyZRI",
+			playerVars: {
+				rel: 0,
+				disablekb: 1,
+				modestbranding: 1,
+				showinfo: 0,
+				controls: 0
+			},
+			events: {
+				"onReady": onPlayerReady,
+				"onStateChange": onPlayerStateChange
+			}
+		});
+		youtubeVideo = document.getElementById("youtubeVideo");
+	}
+
+	function onPlayerReady(event) {
+		console.log("onPlayerReady();");
+		clearYoutubeVideo();
+	}
+
+	function onPlayerStateChange(event) {
+		console.log("onPlayerStateChange();");
+
+		if (event.data === YT.PlayerState.ENDED) {
+			//event.target.destroy(); // unici instanco playerja
+			clearYoutubeVideo();
+			showEmoticon(1);
+		}
+	}
+
+	function doConnect(urlNaslov) {
+		websocket = new WebSocket(urlNaslov);
+		websocket.onopen = function(evt) {
+			onOpen(evt);
+		};
+		websocket.onclose = function(evt) {
+			onClose(evt);
+		};
+		websocket.onerror = function(evt) {
+			onError(evt);
+		};
+		websocket.onmessage = function(evt) {
+			onMessage(evt);
+		};
+	}
+
+	function onOpen(evt) {
+		console.log("onOpen();");
+	}
+
+	function onClose(evt) {
+		console.log("onClose();");
+	}
+
+	function onError(evt) {
+		console.log("onError();");
+		websocket.close();
+	}
+
+	function onMessage(evt) {
+		console.log("onMessage();");
+
+		var x = evt.data;
+
+		try {
+			var regex  = /[^-]*$/g;
+			x = x.match(regex);
+			x = x[0].split(" ");
+			if (x.length > 2) {
+				console.log("Prejeto sporocilo vsebovalo nepotrebne presledke... not good");
+			}
+			x = x[1];
+		} catch(err) {
+			console.log("Napaka formata prejetega sporocila:", err);
+		}
+
+		humanOperatorAction(x);
+	}
+
+	function doDisconnect() {
+		console.log("doDisconnect();");
+		websocket.close();
+	}
+
+	/*function doSend(msg) {
+		console.log("Posiljam sporocilo:", msg);
+		websocket.send(msg);
+	}*/
+
+
+	function humanOperatorAction(podatek) {
+		console.log("Prejet podatek:", podatek);
+		
+		if (isNaN(podatek)) {
+			console.log("Prejet podatek ne vsebuje veljavnega stevila. Prekinjam izvajanje");
+			return;
+		}
+		
+		podatek = parseInt(podatek);
+
+		switch(podatek) {
+			case 0:
+				clearEmoticon();
+
+				if (!youtubeFlag) {
+					playYoutubeVideo();
+					youtubeFlag = true;
+				}
+				break;
+			case 1:
+			case 2:
+			case 3:
+			case 4:
+			case 5:
+				clearYoutubeVideo();
+				showEmoticon(podatek);
+				break;
+			case 6:
+				clearYoutubeVideo();
+				playAudioBeginning();
+				break;
+			case 7:
+				clearYoutubeVideo();
+				playAudioDeath();
+				break;
+			case 8:
+				clearYoutubeVideo();
+				playAudioSelfReport();
+				break;
+			default:
+				console.log("Prejet podatek ne ustreza nobenemu veljavnemu pravilu");
+		}
+	}
+
+	function playYoutubeVideo() {
+		console.log("playYoutubeVideo();");
+		player.playVideo();
+		setTimeout(function() { // da ne prikaze ob vsakem vnovicnem gledanju yt logota desno spodaj
+			youtubeVideo.style.display = "block";
+		}, 100);
+	}
+
+	function clearYoutubeVideo() {
+		console.log("clearYoutubeVideo();");
+		youtubeFlag = false;
+		player.seekTo(0);
+		player.pauseVideo();
+		youtubeVideo.style.display = "none";
+	}
+
+	function clearEmoticon() {
+		console.log("clearEmoticon();");
+		emoticon.style.display = "none";
+	}
+
+	function showEmoticon(stevilka) {
+		console.log("showEmoticon(" + stevilka + ");");
+		emoticon.style.display = "block";
+		emoticon.setAttribute("src", "emo" + stevilka + ".gif");
+	}
+
+	function playAudioBeginning() {
+		console.log("playAudioBeginning();");
+		runCounter++;
+		var audio = new Audio("run" + runCounter + ".mp3");
+		audio.play();
+		if (runCounter === 5) {
+			console.log("Stevilo poskusov enako 5. Postavljam stevec poskusov na 0");
+			runCounter = 0;
+		}
+	}
+
+	function playAudioDeath() {
+		console.log("playAudioDeath();");
+		var collisionNumber = Math.floor(Math.random() * 2) + 1;
+		var audio = new Audio("collision" + collisionNumber + ".mp3");
+		audio.play();
+	}
+
+	function playAudioSelfReport() {
+		console.log("playAudioSelfReport();");
+		var audio = new Audio("selfreport.mp3");
+		audio.play();
+	}
+
+
+</script>
+</html> 
